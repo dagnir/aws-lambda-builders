@@ -68,38 +68,21 @@ ProjectB
 └── template.yaml
 ```
 
-*Here `Project A` is a a single lambda function, and `Project B` is a
-multi-build project where sub directories `lambda1` and `lambda2` are each a
-lambda function*.
+Here `ProjectA` is a a single lambda function, and `ProjectB` is a multi-build
+project where sub directories `lambda1` and `lambda2` are each a lambda
+function. In addition, suppose that `ProjectB/lambda1` has a dependency on its
+sibling project `ProjectB/common`.
 
 Building Project A is relatively simple since we just need to issue `gradlew
 build` and place the built ZIP within the artifact directory.
 
-Building Project B is a little more complicated. Starting at the top of the
-directory, we begin by issuing `gradlew build` as before. However, since we have
-now built multiple functions, we need *multiple* artifact directories, one for
-each function. The build workflow must have some way of mapping each function's
-artifact to the correct artifact directory.
+Building `ProjectB/lambda1` is very similar from the point of view of the
+workflow since it still issues the same command (`gradlew build`), but it
+requires that Gradle is able to find its way back up to the parent `ProjectB` so
+that it can also build `ProjectB/common` which can be a challenge when mounting
+within a container.
 
 ## Implementation
-
-### Source directory, and artifact directory semantics
-
-To enable the multi build projects where a Gradle project can contain multiple
-Lambdas as individual child projects, the builder behavior will change depending
-on whether the `options` provided to the build command contains a map called
-`artifact_mapping`.
-
-When this map is **not** present, the semantics of `source_dir` and
-`artifact_dir` are not changed.
-
-If this map is present, then `source_dir` is treated as the root directory of
-the parent project. Additionally, `artifact_dir` will not be the path under
-which the artifact will be copied to, but just the parent of the final
-directory. `artifact_mapping` will be a mapping from a source subdirectory under
-`source_dir` (i.e. the location of the inidividual function code), to a sub
-directory under the given `artifact_dir` where the function's artifacts will be
-copied to.
 
 ### Build Workflow
 
@@ -151,10 +134,12 @@ gradle.taskGraph.afterTask { t ->
 
 #### Step 3: Resolve Gradle executable to use
 
-A popular way to author and distribute a Gradle project is to include a
-`gradlew` or Gradle Wrapper file within the root of the project. This
-essentially locks in the version of Gradle for the project and uses an
-executable that is independent of any local installations.
+[The recommended
+way](https://docs.gradle.org/current/userguide/gradle_wrapper.html)  way to
+author and distribute a Gradle project is to include a `gradlew` or Gradle
+Wrapper file within the root of the project. This essentially locks in the
+version of Gradle for the project and uses an executable that is independent of
+any local installations.
 
 The `gradlew` script, if it is included, will be located at the root of the
 project. We make the assumption that `source_dir` is always at the project root,
@@ -166,7 +151,22 @@ We give precedence to this `gradlew` file, and if isn't found, we use the
 #### Step 3: Build and package
 
 ```sh
-$GRADLE_EXECUTABLE --init-script /$SCRATCH_DIR/lambda-build-init.gradle build
+$GRADLE_EXECUTABLE -Dsoftware.amazon.aws.lambdabuilders.scratch-dir=$SCRATCH_DIR \
+--init-script $SCRATCH_DIR/lambda-build-init.gradle build
 ```
+
+Notice here that we also tell the script where the scratch directory is. This
+allows it to correctly map the build directory for each sub-project within
+`scratch_dir`. Going back to the `ProjectB` example, even though we may just be
+building `lambda1`, this also has the effect of building `common` because it's a
+dependency. So, within `scratch_dir` will be a sub directory for each project
+that gets built as a result of building `source_dir`; in this case there will be
+one for each of `lambda1` and `common`.
+
+### Step 4: Copy to artifact directory
+
+The workflow implementation is aware of the mapping scheme used to map a
+`source_dir` to the correct directory under `scratch_dir` , so it knows where to
+find the built Lambda artifact when copying it to `artifacts_dir`.
 
 [path resolver]: https://github.com/awslabs/aws-lambda-builders/pull/55

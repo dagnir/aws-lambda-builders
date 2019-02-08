@@ -25,8 +25,10 @@ class SubprocessGradle(object):
             raise ValueError("Must provide OSUtils")
         self.os_utils = os_utils
 
-    def build(self, source_dir, init_script_path=None):
+    def build(self, source_dir, init_script_path=None, properties=None):
         args = ['build']
+        if properties is not None:
+            args.extend(['-D%s=%s' % (n, v) for n, v in properties.items()])
         if init_script_path is not None:
             args.extend(['--init-script', init_script_path])
         ret_code, _, stderr = self._run(args, source_dir)

@@ -6,6 +6,7 @@ import os
 import platform
 import shutil
 import subprocess
+from aws_lambda_builders.utils import which
 
 
 class OSUtils(object):
@@ -29,6 +30,9 @@ class OSUtils(object):
 
     def exists(selfself, p):
         return os.path.exists(p)
+
+    def which(self, executable, executable_search_paths=None):
+        return which(executable, executable_search_paths=executable_search_paths)
 
     @property
     def pipe(self):

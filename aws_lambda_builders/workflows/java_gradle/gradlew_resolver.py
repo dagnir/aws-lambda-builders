@@ -2,28 +2,30 @@
 Gradle executable resolution
 """
 
-from aws_lambda_builders.path_resolver import PathResolver
+from .utils import OSUtils
 
 
 class GradlewResolver(object):
-    DUMMY_PATH = object()
 
-    def __init__(self, binary, executable_search_paths=None, path_resolver=None):
-        self.binary = binary
+    def __init__(self, executable_search_paths=None, os_utils=None):
+        self.binary = 'gradle'
         self.executables = [self.binary]
-        if path_resolver is None:
-            self.path_resolver = PathResolver(binary=self.binary, runtime=None,
-                                              executable_search_paths=executable_search_paths)
-        else:
-            self.path_resolver = path_resolver
+        self.executable_search_paths = executable_search_paths
+        self.os_utils = os_utils if os_utils else OSUtils()
 
     @property
     def exec_paths(self):
-        try:
-            return self.path_resolver.exec_paths
-        except ValueError as e:
-            # gradlew is optional so we're okay with not finding the executable
-            if str(e).startswith("Path resolution for runtime"):
-                return [self.DUMMY_PATH]
-            else:
-                raise e
+        # Prefer gradlew/gradlew.bat
+        paths = self.os_utils.which(self.wrapper_name, executable_search_paths=self.executable_search_paths)
+        if not paths:
+            # fallback to the gradle binary
+            paths = self.os_utils.which('gradle', executable_search_paths=self.executable_search_paths)
+
+        if not paths:
+            raise ValueError("No Gradle executable found!")
+
+        return paths
+
+    @property
+    def wrapper_name(self):
+        return 'gradlew.bat' if self.os_utils.is_windows() else 'gradlew'

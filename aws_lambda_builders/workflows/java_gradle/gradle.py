@@ -40,12 +40,7 @@ class SubprocessGradle(object):
             raise GradleExecutionError(message=stderr.decode('utf8').strip())
 
     def _run(self, args, cwd=None):
-        p = self.os_utils.popen([self._gradle_path().binary_path] + args, cwd=cwd, stdout=subprocess.PIPE,
+        p = self.os_utils.popen([self.gradle_binary.binary_path] + args, cwd=cwd, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
         stdout, stderr = p.communicate()
         return p.returncode, stdout, stderr
-
-    def _gradle_path(self):
-        if self.gradlew and self.gradlew.binary_path is GradlewResolver.DUMMY_PATH:
-            return self.gradle_binary
-        return self.gradlew
